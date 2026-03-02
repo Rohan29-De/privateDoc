@@ -86,6 +86,7 @@ ${question}
     return NextResponse.json({
       answer,
       confidence: topChunks[0].score,
+      source: topChunks[0].content,
     });
 
   } catch (error) {

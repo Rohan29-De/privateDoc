@@ -1,17 +1,17 @@
 "use client";
+import "react-pdf/dist/Page/TextLayer.css";
+import "react-pdf/dist/Page/AnnotationLayer.css";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+
 import pdfToText from "react-pdftotext";
+
+
 
 const Document = dynamic(() => import("react-pdf").then((mod) => mod.Document), { ssr: false });
 const Page = dynamic(() => import("react-pdf").then((mod) => mod.Page), { ssr: false });
 
 export default function Home() {
-  useEffect(() => {
-    import("react-pdf").then((mod) => {
-      mod.pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${mod.pdfjs.version}/pdf.worker.min.js`;
-    });
-  }, []);
   const [file, setFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -19,7 +19,52 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [summary, setSummary] = useState("");
+  const [sourceText, setSourceText] = useState("");
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("react-pdf").then((mod) => {
+        mod.pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url
+        ).toString();
+      });
+    }
+  }, []);
+
+  // highlight matched text in the rendered PDF after answer/source updates
+useEffect(() => {
+  if (!answer) return;
+
+  const clean = (text: string) =>
+    text.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const normalizedAnswer = clean(answer);
+
+  const timeout = setTimeout(() => {
+    const spans = document.querySelectorAll(
+      ".react-pdf__Page__textContent span"
+    );
+
+    spans.forEach((span) => {
+      if (!(span instanceof HTMLElement)) return;
+
+      span.classList.remove("highlight-span");
+
+      const text = span.textContent?.trim() || "";
+      const normalizedSpan = clean(text);
+
+      if (
+        normalizedSpan.length > 4 &&
+        normalizedAnswer.includes(normalizedSpan)
+      ) {
+        span.classList.add("highlight-span");
+      }
+    });
+  }, 500);
+
+  return () => clearTimeout(timeout);
+}, [answer]);
   const handleUpload = async (selectedFile?: File) => {
     const fileToUpload = selectedFile || file;
     if (!fileToUpload) return;
@@ -59,10 +104,12 @@ export default function Home() {
   };
 
   const askQuestion = async () => {
-    if (!question) return;
+  if (!question) return;
 
-    setStatus("Thinking...");
+  console.log("Asking question:", question);
+  setStatus("Thinking...");
 
+  try {
     const res = await fetch("/api/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -70,20 +117,26 @@ export default function Home() {
     });
 
     const data = await res.json();
+    console.log("Query response:", data);
 
     if (res.ok) {
       setAnswer(data.answer);
+      setSourceText(data.source || "");
       setStatus(`Confidence: ${data.confidence}`);
     } else {
       setStatus(data.error || "Query failed");
     }
-  };
+  } catch (err) {
+    console.error("Ask error:", err);
+    setStatus("Error occurred");
+  }
+};
 
   return (
-    <div className="h-screen grid grid-cols-2 bg-gray-100">
+    <div className="h-screen grid grid-cols-2 bg-gray-100 overflow-hidden">
 
       {/* LEFT PANEL */}
-      <div className="bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+      <div className="bg-white border-r border-gray-200 flex flex-col h-full overflow-hidden">
 
         {/* Navbar */}
         <div className="p-4 flex justify-between items-center bg-[#00cc00]">
@@ -139,19 +192,23 @@ export default function Home() {
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 p-6 space-y-6 overflow-hidden">
 
           {/* Summary Box */}
           {summary && (
-            <div className="bg-[#bfbfbf] p-5 rounded-lg border border-gray-400 shadow-sm">
-              <h2 className="font-semibold text-gray-800 mb-3">
-                Summary
-              </h2>
-              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                {summary}
-              </div>
-            </div>
-          )}
+  <div className="bg-[#bfbfbf] p-5 rounded-lg border border-gray-400 shadow-sm flex flex-col h-[300px]">
+    <h2 className="font-semibold text-gray-800 mb-3">
+      Summary
+    </h2>
+
+    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed overflow-y-auto">
+      {summary
+        .split("\n")
+        .filter(line => !line.includes("?"))
+        .join("\n")}
+    </div>
+  </div>
+)}
 
           {/* Floating Suggested Questions */}
           {summary && (
@@ -164,7 +221,7 @@ export default function Home() {
                 {summary
                   .split("\n")
                   .filter((line) => line.includes("?"))
-                  .slice(0, 5)
+                  .slice(0, 2)
                   .map((q, i) => (
                     <button
                       key={i}
@@ -187,7 +244,7 @@ export default function Home() {
               placeholder="Ask about this document..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-4 pr-24 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full border border-gray-300 rounded-lg p-4 pr-24 text-sm text-black placeholder-gray-500 bg-white resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
               rows={3}
             />
             <button
@@ -200,43 +257,52 @@ export default function Home() {
         </div>
       </div>
 
-      {/* RIGHT PANEL */}
-      <div className="overflow-y-auto p-6 bg-gray-100">
-        {answer && (
-          <div className="mb-6 bg-white border border-gray-200 rounded p-4 shadow-sm">
-            <h3 className="font-semibold text-gray-800 mb-2">Answer</h3>
-            <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
-              {answer}
-            </p>
-          </div>
-        )}
+  {/* RIGHT PANEL */}
+      <div className="flex flex-col h-full overflow-hidden">
 
-        {/* PDF Viewer Placeholder */}
-        {pdfFile ? (
-  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex justify-center">
-    <Document
-      file={pdfFile}
-      onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-      loading={<p className="text-gray-500">Loading PDF...</p>}
-    >
-      {Array.from(new Array(numPages || 0), (_, index) => (
-        <Page
-          key={`page_${index + 1}`}
-          pageNumber={index + 1}
-          width={600}
-          renderTextLayer={true}
-          renderAnnotationLayer={false}
-        />
-      ))}
-    </Document>
-  </div>
-) : (
-  <div className="flex items-center justify-center h-full text-gray-400">
-    No document uploaded
-  </div>
-)}
+  {/* Answer Box - Fixed */}
+  <div className="p-4 border-b border-gray-300 bg-white">
+    {answer ? (
+      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+        <h3 className="font-semibold text-gray-800 mb-2">Answer</h3>
+        <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
+          {answer}
+        </p>
       </div>
+    ) : (
+      <div className="text-gray-400 text-sm">
+        No question asked yet
+      </div>
+    )}
+  </div>
 
+  {/* PDF Scroll Area */}
+  <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-gray-100">
+    {pdfFile ? (
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex justify-center">
+        <Document
+          file={pdfFile}
+          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+        >
+          {Array.from(new Array(numPages || 0), (_, index) => (
+            <Page
+              key={`page_${index + 1}`}
+              pageNumber={index + 1}
+              width={600}
+              renderTextLayer={true}
+              renderAnnotationLayer={false}
+            />
+          ))}
+        </Document>
+      </div>
+    ) : (
+      <div className="flex items-center justify-center h-full text-gray-400">
+        No document uploaded
+      </div>
+    )}
+  </div>
+
+</div>
     </div>
   );
 }
