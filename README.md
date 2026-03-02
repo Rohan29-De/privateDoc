@@ -1,7 +1,7 @@
 # **PrivateDoc AI**
 ### A document-grounded AI assistant built with Next.js 16 and Retrieval-Augmented Generation (RAG).
 ## Live Demo
-link;
+```https://private-doc.vercel.app```
 ## Problem
 Modern LLM-based tools such as OpenAI's ChatGPT or Google’s Gemini are powerful, but when used for document Q&A they often:
 * Hallucinate answers
