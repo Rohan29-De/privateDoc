@@ -1,35 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #222831;
+  --foreground: #eeeeee;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* --- THE CRITICAL FIX FOR OVERLAPPING TEXT --- */
+/* React-PDF renders a transparent text layer on top of the canvas. 
+   When they don't align, it looks jumbled. This CSS fixes the positioning.
+*/
+.react-pdf__Page__textContent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  /* This prevents the text layer from appearing as a separate "jumbled" block */
+  mix-blend-mode: multiply; 
+  opacity: 1;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Fix for individual spans in the text layer */
+.react-pdf__Page__textContent span {
+  color: transparent !important; /* Makes the "selectable" text invisible */
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* --- LIGHT YELLOW HIGHLIGHT STYLE --- */
+highlight-span {
+  /* High-visibility Yellow (#ffff00) */
+  background-color: rgba(255, 255, 0, 0.45) !important; 
+  
+  /* Subtle glow to make it pop against dark backgrounds */
+  box-shadow: 0 0 4px rgba(255, 255, 0, 0.3);
+  
+  border-radius: 2px;
+  
+  /* This ensures the highlight doesn't hide the black text of the PDF */
+  mix-blend-mode: multiply; 
+  
+  /* Keeps the highlight above the canvas but behind the text layer */
+  z-index: 1; 
+  
+  position: relative;
+  display: inline;
 }
 
-.highlight-span {
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 0, 0.15),
-    rgba(255, 255, 0, 0.4)
-  );
-  border-radius: 3px;
+/* --- THE FIX FOR OVERLAPPING BLUE/JUMBLED TEXT --- */
+.react-pdf__Page__textContent {
+  /* This makes the "selectable" text invisible so you don't see double,
+     but allows the yellow highlight to show through from behind it. */
+  opacity: 1 !important;
+}
+
+.react-pdf__Page__textContent span {
+  /* We make the duplicate text transparent so only the PDF image is visible */
+  color: transparent !important;
 }

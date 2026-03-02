@@ -69,16 +69,28 @@ export async function POST(req: NextRequest) {
       .map((c, i) => `Source ${i + 1}:\n${c.content}`)
       .join("\n\n");
 
-    const prompt = `
-Answer ONLY from the provided sources.
-If the answer is not clearly stated, say:
-"The document does not contain this information."
+   const prompt = `
+You are a document-grounded AI assistant.
 
-Sources:
-${context}
+Answer the question ONLY using the provided context.
+
+Rules:
+- If the answer is explicitly present in the context, return it clearly.
+- If the answer is NOT explicitly present in the context, respond EXACTLY with:
+  "The document does not contain this information."
+- Do NOT guess.
+- Do NOT infer.
+- Do NOT use outside knowledge.
+- Do NOT explain reasoning.
+- Keep the answer concise and factual.
+
+Context:
+${topChunks.map(c => c.content).join("\n\n")}
 
 Question:
 ${question}
+
+Answer:
 `;
 
     const answer = await askGroq(prompt);

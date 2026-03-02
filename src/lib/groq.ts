@@ -27,13 +27,21 @@ export async function askGroq(prompt: string): Promise<string> {
 export async function generateSummary(text: string): Promise<string> {
   const shortText = text.slice(0, 8000); // limit token size
 
-  const prompt = `
+ const prompt = `
 You are analyzing a document.
 
-Provide:
-1. A short summary (5-7 sentences)
-2. Key important details (bullet points)
-3. 5 suggested questions someone might ask about this document
+Return:
+
+1. A short factual summary (5-7 sentences).
+2. Key important details as bullet points.
+3. EXACTLY 2 suggested questions.
+4. Each suggested question must include exact wording that appears in the document.
+Important rules for suggested questions:
+- Each question MUST be answerable directly from the document.
+- Do NOT create analytical, comparative, or opinion-based questions.
+- Do NOT ask anything that requires outside knowledge.
+- Only ask about information that is explicitly written in the document.
+- Keep questions factual and specific.
 
 Document:
 ${shortText}
